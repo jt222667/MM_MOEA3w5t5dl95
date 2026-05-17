@@ -1,0 +1,112 @@
+function MMMOEA(Global)
+% <algorithm> <A>
+% Adaptive reference points based multi-objective evolutionary algorithm
+
+%------------------------------- Reference --------------------------------
+% Y. Tian, R. Cheng, X. Zhang, and Y. Jin, An indicator-based
+% multiobjective evolutionary algorithm with reference point adaptation for
+% better versatility, IEEE Transactions on Evolutionary Computation, 2018,
+% 22(4): 609-622.
+%------------------------------- Copyright --------------------------------
+% Copyright (c) 2018-2019 BIMK Group. You are free to use the PlatEMO for
+% research purposes. All publications which use this platform or any code
+% in the platform should acknowledge the use of "PlatEMO" and reference "Ye
+% Tian, Ran Cheng, Xingyi Zhang, and Yaochu Jin, PlatEMO: A MATLAB platform
+% for evolutionary multi-objective optimization [educational forum], IEEE
+% Computational Intelligence Magazine, 2017, 12(4): 73-87".
+%--------------------------------------------------------------------------
+
+    %% Generate the sampling points and random population
+    Population = Global.Initialization();
+    W          = UniformPoint(Global.N,Global.M);
+    W=W-1/Global.M;
+    %[Archive,RefPoint,Range] = UpdateRefPoint(Population(all(Population.cons<=0,2)).objs,W,[]);
+    T=floor(Global.N*0.1);
+    %% Optimization
+    while Global.NotTermination(Population)
+        decs=Population.decs;
+        %dobjs=Population.objs;
+        %MatingPool = MatingSelection(Population,RefPoint,Range);
+        %Offspring  = GA(Population(MatingPool));
+        ddecs=pdist2(decs,decs);
+        [~,B]=sort(ddecs);
+        B=B(:,1:T);
+        %MatingPool=B(:);
+        Offspring=Population;
+        for i=1:Global.N
+            rid=randi(T-1);
+            Offspring(i)  = GAhalf([Population(B(i,1)),Population(B(i,1+rid))]);
+        end
+        
+        %[Archive,RefPoint,Range] = UpdateRefPoint([Archive;Offspring(all(Offspring.cons<=0,2)).objs],W,Range);
+        %[Population,Range]       = EnvironmentalSelection([Population,Offspring],RefPoint,Range,Global.N);
+%         Range(1,:) = min([Range(1,:);Archive],[],1);
+% %         RefPoint  = W.*repmat(Range(2,:)-Range(1,:),size(W,1),1);
+% %         pd2=pdist2(RefPoint,temp.objs);
+% %         [~,pdsid]=sort(pd2,2);
+% %         RefPoint=temp(pdsid(:,2)).objs;
+% %         RefPoint=unique(RefPoint,'rows');
+%         %[~,W,~] = UpdateRefPoint([arch.objs;Offspring.objs],W,[]);
+%         [FrontNo,MaxFNo] = NDSort(temp.objs,temp.cons,Global.N);
+        
+%         RefPoint=[temp(FrontNo==1).objs];
+       %[Population,Range]       = EnvironmentalSelection([Population,Offspring],RefPoint,Range,Global.N);
+       
+               
+        temp=Population;temp(end+1:end+Global.N)=Offspring;
+        tempfitness=ones(Global.N+Global.N,1)*1e25;
+        %newx_obj=Offspring.objs;
+         [FrontNo,MaxFNo] = NDSort(temp.objs,temp.cons,Global.N);
+         Range = [min([Range(1,:);temp(FrontNo==1).objs],[],1);max([Range(1,:);temp(FrontNo==1).objs],[],1);];
+         RefPoint  = W.*repmat(Range(2,:)-Range(1,:),size(W,1),1);
+         
+         
+         
+%          pd2=pdist2(RefPoint,temp(FrontNo==MaxFNo).objs);
+%           [midpd,pdsid]=sort(pd2,2);
+%          midpd=midpd(:,2);
+%          RefPoint=temp(pdsid(:,2)).objs;
+        for i =1:Global.N
+              
+              newxi_obj=(mean((repmat(temp(i).obj,size(RefPoint,1),1)-RefPoint).^2,2)); 
+              
+              %newxi_obj(newxi_obj>0)=1e25;
+              %xi_obj(xi_obj>0)=1e25;
+              tempfitness(i,1)=min(newxi_obj);
+              
+              xi_obj=(mean((repmat(temp(i+Global.N).obj,size(RefPoint,1),1)-RefPoint).^2,2)); 
+              tempfitness(i+Global.N,1)=min(xi_obj);
+        end
+%         
+%         [cid,~]=kmeans(temp.objs,Global.N);
+%         for i=1:Global.N
+%             index=find(cid==i);
+%             tempx=temp(index);
+%             tempf=FrontNo(index);
+%             [~,mid]=min(tempf);
+%             Population(i)=temp(mid);
+%         end
+        
+%
+       %% Non-dominated sorting
+        %[FrontNo,MaxFNo] = NDSort(temp.objs,temp.cons,Global.N);
+        Next = FrontNo < MaxFNo;
+
+        %% Select the solutions in the last front based on their crowding distances
+        Last     = find(FrontNo==MaxFNo);
+        %tempx=temp(Last).decs;
+        %tempx=(tempx-repmat(Global.lower,size(tempx,1),1))./repmat(Global.upper-Global.lower,size(tempx,1),1);
+        [cid,~]=kmeans(temp(Last).objs,Global.N-sum(Next));
+        for i=1:Global.N-sum(Next)
+            index=Last(cid==i);
+            [~,mid]=min(tempfitness(index));
+            Next(index(mid)) = true;
+        end
+%         [~,Rank] = sort( tempfitness(Last));
+%         Next(Last(Rank(1:Global.N-sum(Next)))) = true;
+
+        %% Population for next generation
+        Population = temp(Next);
+        
+    end
+end
